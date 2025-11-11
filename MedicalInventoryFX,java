@@ -1,0 +1,127 @@
+package MiniProject;
+
+import javafx.application.Application;
+import javafx.collections.*;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+import java.util.Collections;
+
+public class MedicalInventoryFX extends Application {
+
+    private MedicalInventoryLogic.Inventory<MedicalInventoryLogic.MedicalEquipment> inventory =
+            new MedicalInventoryLogic.Inventory<>();
+    private ObservableList<MedicalInventoryLogic.MedicalEquipment> data = FXCollections.observableArrayList();
+    private final int LOW_STOCK_THRESHOLD = 5;
+
+    @Override
+    public void start(Stage stage) {
+        // Sample data
+        inventory.add(new MedicalInventoryLogic.DiagnosticEquipment("D1","X-Ray Machine","Siemens","X200","X-Ray"), 2);
+        inventory.add(new MedicalInventoryLogic.SurgicalEquipment("S1","Scalpel Set","MedTools","S-Pro",true), 10);
+        inventory.add(new MedicalInventoryLogic.Consumable("C1","Gloves","SafeHands","Latex","Box"), 6);
+        data.addAll(inventory.items.values());
+
+        // TableView
+        TableView<MedicalInventoryLogic.MedicalEquipment> table = new TableView<>(data);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        TableColumn<MedicalInventoryLogic.MedicalEquipment,String> colId = new TableColumn<>("ID");
+        colId.setCellValueFactory(new PropertyValueFactory<>("id"));
+
+        TableColumn<MedicalInventoryLogic.MedicalEquipment,String> colName = new TableColumn<>("Name");
+        colName.setCellValueFactory(new PropertyValueFactory<>("name"));
+
+        TableColumn<MedicalInventoryLogic.MedicalEquipment,String> colCategory = new TableColumn<>("Category");
+        colCategory.setCellValueFactory(cellData ->
+                javafx.beans.binding.Bindings.createStringBinding(() -> cellData.getValue().getCategory()));
+
+        TableColumn<MedicalInventoryLogic.MedicalEquipment,Integer> colQty = new TableColumn<>("Qty");
+        colQty.setCellValueFactory(cellData ->
+                javafx.beans.binding.Bindings.createObjectBinding(() -> inventory.getQty(cellData.getValue().getId())));
+
+        TableColumn<MedicalInventoryLogic.MedicalEquipment,String> colExtra = new TableColumn<>("Extra Info");
+        colExtra.setCellValueFactory(cellData ->
+                javafx.beans.binding.Bindings.createStringBinding(() -> cellData.getValue().getExtraInfo()));
+
+        Collections.addAll(table.getColumns(), colId, colName, colCategory, colQty, colExtra);
+
+        // Highlight low stock rows
+        table.setRowFactory(tv -> new TableRow<MedicalInventoryLogic.MedicalEquipment>() {
+            @Override
+            protected void updateItem(MedicalInventoryLogic.MedicalEquipment item, boolean empty) {
+                super.updateItem(item, empty);
+                if(item == null) {
+                    setStyle("");
+                } else if(inventory.getQty(item.getId()) <= LOW_STOCK_THRESHOLD) {
+                    setStyle("-fx-background-color: #ff9999;");
+                } else {
+                    setStyle("");
+                }
+            }
+        });
+
+
+        // Form
+        TextField idField = new TextField(); idField.setPromptText("ID");
+        TextField nameField = new TextField(); nameField.setPromptText("Name");
+        TextField manufacturerField = new TextField(); manufacturerField.setPromptText("Manufacturer");
+        TextField modelField = new TextField(); modelField.setPromptText("Model");
+        TextField extraField = new TextField(); extraField.setPromptText("Type/Unit/Sterilizable");
+        TextField qtyField = new TextField(); qtyField.setPromptText("Qty");
+        ComboBox<String> typeBox = new ComboBox<>();
+        typeBox.getItems().addAll("Diagnostic","Surgical","Consumable"); typeBox.setValue("Diagnostic");
+
+        Button addBtn = new Button("Add Item");
+        addBtn.setOnAction(e -> {
+            try {
+                String id = idField.getText().trim();
+                String name = nameField.getText().trim();
+                String manuf = manufacturerField.getText().trim();
+                String model = modelField.getText().trim();
+                int qty = Integer.parseInt(qtyField.getText().trim());
+                MedicalInventoryLogic.MedicalEquipment item;
+                switch(typeBox.getValue()) {
+                    case "Diagnostic":
+                        item = new MedicalInventoryLogic.DiagnosticEquipment(id,name,manuf,model,extraField.getText()); break;
+                    case "Surgical":
+                        item = new MedicalInventoryLogic.SurgicalEquipment(id,name,manuf,model,
+                                extraField.getText().toLowerCase().startsWith("y")); break;
+                    default:
+                        item = new MedicalInventoryLogic.Consumable(id,name,manuf,model,extraField.getText()); break;
+                }
+                inventory.add(item,qty);
+                data.setAll(inventory.items.values());
+                idField.clear(); nameField.clear(); manufacturerField.clear(); modelField.clear();
+                extraField.clear(); qtyField.clear();
+            } catch(Exception ex) {
+                new Alert(Alert.AlertType.ERROR,"Invalid input!").showAndWait();
+            }
+        });
+
+        Button deleteBtn = new Button("Delete Selected");
+        deleteBtn.setOnAction(e -> {
+            MedicalInventoryLogic.MedicalEquipment selected = table.getSelectionModel().getSelectedItem();
+            if(selected!=null) {
+                inventory.delete(selected.getId());
+                data.setAll(inventory.items.values());
+            }
+        });
+
+        HBox form = new HBox(5, idField,nameField,manufacturerField,modelField,extraField,qtyField,typeBox,addBtn,deleteBtn);
+        form.setStyle("-fx-padding: 10;");
+
+        VBox root = new VBox(10, table, form);
+        root.setStyle("-fx-padding: 10;");
+
+        stage.setScene(new Scene(root,1200,400));
+        stage.setTitle("Medical Inventory Management System");
+        stage.show();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
